@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Steganography — Hide Secret Text in Images</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- =========================================================
+       HEADER / HERO SECTION
+       ========================================================= -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="badge">LSB Steganography + Password Encryption &bull; HTML5 Canvas</div>
+      <h1>Image Steganography</h1>
+      <p class="subtitle">
+        Hide secret text messages inside PNG or JPG images using the
+        <strong>Least Significant Bit (LSB)</strong> technique — with optional
+        <strong>AES-256 password encryption</strong>, completely in your browser.
+      </p>
+    </div>
+  </header>
+
+  <!-- =========================================================
+       MAIN APPLICATION WORKSPACE (HIDE & REVEAL SECTIONS)
+       ========================================================= -->
+  <main class="container">
+    <!-- Live Status / Notification Banner -->
+    <div id="statusBanner" class="status-banner hidden" role="alert" aria-live="polite">
+      <span id="statusIcon" class="status-icon" aria-hidden="true"></span>
+      <span id="statusText" class="status-text"></span>
+      <button id="dismissStatusBtn" class="status-close" type="button" aria-label="Dismiss notification">&times;</button>
+    </div>
+
+    <div class="workspace-grid">
+      <!-- -----------------------------------------------------
+           SECTION 1: HIDE MESSAGE (ENCODING)
+           ----------------------------------------------------- -->
+      <section class="card" aria-labelledby="encode-heading">
+        <div class="card-header">
+          <div class="card-header-top">
+            <span class="step-pill">01 &bull; ENCODE</span>
+            <button id="useSampleBtn" class="btn-link" type="button">Use Sample Image</button>
+          </div>
+          <h2 id="encode-heading">Hide Message</h2>
+          <p class="card-desc">
+            Upload a PNG or JPG image, enter your secret text and password, then encode it into the image pixels.
+          </p>
+        </div>
+
+        <div class="card-body">
+          <!-- Step 1: Upload Original Image -->
+          <div class="form-group">
+            <label for="encodeImageInput" class="form-label">1. Select Cover Image (PNG or JPG)</label>
+            <label for="encodeImageInput" class="file-dropzone" id="encodeDropzone">
+              <input
+                type="file"
+                id="encodeImageInput"
+                accept="image/png, image/jpeg, image/jpg"
+                class="sr-only"
+              />
+              <span class="dropzone-title">Click to choose an image or drag &amp; drop</span>
+              <span id="encodeFileName" class="dropzone-meta">Supports PNG, JPG / JPEG &mdash; or click "Use Sample Image"</span>
+            </label>
+          </div>
+
+          <!-- Step 2: Secret Message Input + Live Capacity Meter -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="secretMessageInput" class="form-label">2. Secret Message</label>
+              <span id="capacityCounter" class="capacity-counter">Upload an image to view capacity</span>
+            </div>
+            <textarea
+              id="secretMessageInput"
+              rows="4"
+              placeholder="Type your secret message here..."
+            ></textarea>
+            <div class="capacity-bar-track" aria-hidden="true">
+              <div id="capacityBarFill" class="capacity-bar-fill"></div>
+            </div>
+          </div>
+
+          <!-- Step 3: Password Protection -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="encodePasswordInput" class="form-label">3. Password (Recommended)</label>
+              <span id="passwordStrengthLabel" class="strength-label">Leave blank for no password</span>
+            </div>
+            <div class="password-wrap">
+              <input
+                type="password"
+                id="encodePasswordInput"
+                class="text-input"
+                placeholder="Enter a password to lock your message..."
+                autocomplete="new-password"
+              />
+              <button
+                type="button"
+                id="toggleEncodePwdBtn"
+                class="toggle-pwd-btn"
+                aria-label="Show or hide password"
+              >
+                Show
+              </button>
+            </div>
+            <div class="strength-track" aria-hidden="true">
+              <div id="passwordStrengthFill" class="strength-fill"></div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="button-row">
+            <button id="encodeBtn" class="btn btn-primary" type="button">
+              Encode Message
+            </button>
+            <button id="downloadBtn" class="btn btn-success" type="button" disabled>
+              Download Encoded PNG
+            </button>
+            <button id="sendToDecodeBtn" class="btn btn-secondary" type="button" disabled>
+              Test in Decoder
+            </button>
+            <button id="resetEncodeBtn" class="btn btn-ghost" type="button">
+              Clear
+            </button>
+          </div>
+
+          <!-- Before & After Image Previews -->
+          <div class="preview-pair">
+            <div class="preview-box">
+              <div class="preview-title">Before Encoding (Original)</div>
+              <div class="preview-frame">
+                <img id="originalPreview" alt="Original uploaded image preview" class="preview-img hidden" />
+                <span id="originalPlaceholder" class="preview-placeholder">No image uploaded</span>
+              </div>
+              <div id="originalMeta" class="preview-meta"></div>
+            </div>
+
+            <div class="preview-box">
+              <div class="preview-title">After Encoding (Output PNG)</div>
+              <div class="preview-frame">
+                <img id="encodedPreview" alt="Encoded output image preview" class="preview-img hidden" />
+                <span id="encodedPlaceholder" class="preview-placeholder">Encoded image appears here</span>
+              </div>
+              <div id="encodedMeta" class="preview-meta"></div>
+            </div>
+          </div>
+
+          <p class="info-note">
+            <strong>Security Tip:</strong> When a password is set, the message is encrypted with
+            <strong>AES-256-GCM</strong> before its bits are hidden in the lossless <strong>PNG</strong> image.
+          </p>
+        </div>
+      </section>
+
+      <!-- -----------------------------------------------------
+           SECTION 2: REVEAL MESSAGE (DECODING)
+           ----------------------------------------------------- -->
+      <section class="card" aria-labelledby="decode-heading">
+        <div class="card-header">
+          <div class="card-header-top">
+            <span class="step-pill step-pill-alt">02 &bull; DECODE</span>
+            <span id="decodeLockBadge" class="lock-badge hidden">Password Protected</span>
+          </div>
+          <h2 id="decode-heading">Reveal Message</h2>
+          <p class="card-desc">
+            Upload an encoded PNG image, enter the password if locked, and extract the hidden secret text.
+          </p>
+        </div>
+
+        <div class="card-body">
+          <!-- Step 1: Upload Encoded Image -->
+          <div class="form-group">
+            <label for="decodeImageInput" class="form-label">1. Select Encoded Image (PNG)</label>
+            <label for="decodeImageInput" class="file-dropzone" id="decodeDropzone">
+              <input
+                type="file"
+                id="decodeImageInput"
+                accept="image/png, image/jpeg, image/jpg"
+                class="sr-only"
+              />
+              <span class="dropzone-title">Click to choose an encoded image or drag &amp; drop</span>
+              <span id="decodeFileName" class="dropzone-meta">Use the downloaded PNG image</span>
+            </label>
+          </div>
+
+          <!-- Uploaded Encoded Image Preview -->
+          <div class="preview-box preview-box-single">
+            <div class="preview-title">Uploaded Image Preview</div>
+            <div class="preview-frame">
+              <img id="decodePreview" alt="Encoded image to decode preview" class="preview-img hidden" />
+              <span id="decodePlaceholder" class="preview-placeholder">No image uploaded</span>
+            </div>
+            <div id="decodeMeta" class="preview-meta"></div>
+          </div>
+
+          <!-- Step 2: Password Input for Decoding -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="decodePasswordInput" class="form-label">2. Enter Password</label>
+              <span id="decodePwdHint" class="capacity-counter">Required if message was locked</span>
+            </div>
+            <div class="password-wrap">
+              <input
+                type="password"
+                id="decodePasswordInput"
+                class="text-input"
+                placeholder="Enter password to unlock message..."
+                autocomplete="current-password"
+              />
+              <button
+                type="button"
+                id="toggleDecodePwdBtn"
+                class="toggle-pwd-btn"
+                aria-label="Show or hide decode password"
+              >
+                Show
+              </button>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="button-row">
+            <button id="decodeBtn" class="btn btn-primary" type="button">
+              Decode Message
+            </button>
+            <button id="copyDecodedBtn" class="btn btn-secondary" type="button" disabled>
+              Copy Text
+            </button>
+            <button id="resetDecodeBtn" class="btn btn-ghost" type="button">
+              Clear
+            </button>
+          </div>
+
+          <!-- Extracted Secret Message Output -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="decodedOutput" class="form-label">3. Extracted Secret Message</label>
+              <span id="decodedLengthInfo" class="capacity-counter"></span>
+            </div>
+            <textarea
+              id="decodedOutput"
+              rows="5"
+              readonly
+              placeholder="Your revealed secret message will appear here..."
+            ></textarea>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- =========================================================
+         EDUCATIONAL SECTION: HOW LSB + PASSWORD ENCRYPTION WORKS
+         ========================================================= -->
+    <section class="explainer-card" aria-labelledby="how-heading">
+      <h2 id="how-heading">How the Encoding &amp; Decoding Algorithms Work</h2>
+      <div class="explainer-grid">
+        <article class="explainer-step">
+          <div class="explainer-num">1</div>
+          <h3>Password Encryption (AES-256)</h3>
+          <p>
+            When you enter a password, <code>PBKDF2</code> (100,000 SHA-256 iterations) derives a secret
+            key from your password and a random 16-byte salt. The text is then encrypted with
+            <strong>AES-256-GCM</strong> so wrong passwords cannot unlock it.
+          </p>
+        </article>
+
+        <article class="explainer-step">
+          <div class="explainer-num">2</div>
+          <h3>LSB Pixel Embedding</h3>
+          <p>
+            A 9-byte header (<code>"STEG"</code> signature + mode flag + byte length) and the payload
+            are converted into bits. Each bit replaces the <strong>Least Significant Bit</strong> of
+            consecutive Red, Green, and Blue pixel values via <code>(channel &amp; 0xFE) | bit</code>.
+          </p>
+        </article>
+
+        <article class="explainer-step">
+          <div class="explainer-num">3</div>
+          <h3>Extraction &amp; Decryption</h3>
+          <p>
+            During decoding, <code>channel &amp; 1</code> extracts the header and payload bits from the
+            PNG pixels. If locked, your password decrypts the payload back into readable text — or
+            shows an error if the password is incorrect.
+          </p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      Image Steganography Mini-Project &bull; HTML, CSS, JavaScript, Canvas API &amp; Web Crypto
+    </div>
+  </footer>
+
+  <!-- Hidden working canvas used for pixel-level encoding/decoding -->
+  <canvas id="workCanvas" class="hidden" aria-hidden="true"></canvas>
+
+  <script src="script.js"></script>
+</body>
+</html>
